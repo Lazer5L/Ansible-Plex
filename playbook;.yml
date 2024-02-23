@@ -1,0 +1,46 @@
+  hosts: all
+  vars:
+    directories_to_create:
+      - /mnt/nas
+      - /mnt/transcode
+    packages_to_install:
+      - nano
+      - nfs-common
+      - cifs-utils
+      - ocl-icd-libopencl1
+      - beignet-opencl-icd
+    fstab_entries:
+      - src: "tmpfs"
+        dest: "/mnt/transcode"
+        fstype: "tmpfs"
+        options: "nodev,nosuid,noexec,nodiratime,size="
+      - src: "192.168.1.53:/Multimedia"
+        dest: "/mnt/nas"
+        fstype: "nfs"
+        options: "auto 0 0"
+  tasks:
+    - name: Install packages
+      apt:
+        name: "{{ packages_to_install }}"
+        state: present
+        update_cache: yes
+      become: yes
+
+    - name: Create directories
+      file:
+        path: "{{ item }}"
+        state: directory
+      loop: "{{ directories_to_create }}"
+
+    - name: Add entries to /etc/fstab
+      lineinfile:
+        path: /etc/fstab
+        line: "{{ item.src }} {{ item.dest }} {{ item.fstype }} {{ item.options }}"
+      loop: "{{ fstab_entries }}"
+      create: yes
+
+      - name: Run MrWorf Plex shell command with wget
+      shell: bash -c "$(wget -qO - https://raw.githubusercontent.com/mrworf/plexupdate/master/extras/installer.sh)"
+      args:
+        executable: /bin/bash
+      become: yes
