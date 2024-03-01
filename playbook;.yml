@@ -1,4 +1,6 @@
-  hosts: all
+---
+- name: Plex Playbook
+  hosts: localhost
   vars:
     directories_to_create:
       - /mnt/nas
@@ -8,16 +10,19 @@
       - nfs-common
       - cifs-utils
       - ocl-icd-libopencl1
-      - beignet-opencl-icd
+      - intel-opencl-icd
     fstab_entries:
       - src: "tmpfs"
         dest: "/mnt/transcode"
         fstype: "tmpfs"
-        options: "nodev,nosuid,noexec,nodiratime,size="
+        options: "defaults,size=1g 0 0"
       - src: "192.168.1.53:/Multimedia"
         dest: "/mnt/nas"
         fstype: "nfs"
-        options: "auto 0 0"
+        options: "vers=3,timeo=600 0 0"
+    mount_points_to_check:
+      - /mnt/nas
+      - /mnt/transcode
   tasks:
     - name: Install packages
       apt:
@@ -36,11 +41,31 @@
       lineinfile:
         path: /etc/fstab
         line: "{{ item.src }} {{ item.dest }} {{ item.fstype }} {{ item.options }}"
+        insertafter: EOF
+        create: yes
       loop: "{{ fstab_entries }}"
-      create: yes
 
-      - name: Run MrWorf Plex shell command with wget
-      shell: bash -c "$(wget -qO - https://raw.githubusercontent.com/mrworf/plexupdate/master/extras/installer.sh)"
-      args:
-        executable: /bin/bash
-      become: yes
+    - name: Get currently mounted filesystems
+      command: mount
+      register: mounted_filesystems
+
+    - name: Check if mount points are present
+      debug:
+        msg: "{{ item }} is present"
+      loop: "{{ mount_points_to_check }}"
+      when: item in mounted_filesystems.stdout
+
+#    - name: Force mount all filesystems in /etc/fstab
+#      mount:
+#        name: "{{ item }}"
+#        state: mounted
+#      loop: "{{ mount_points_to_check }}"
+#      when: item not in mounted_filesystems.stdout
+
+    - name: MrWorf Plex
+      get_url:
+        url: "https://raw.githubusercontent.com/mrworf/plexupdate/master/extras/installer.sh"
+        dest: "/tmp/installer.sh"
+        mode: 'u+x' # Make the script executable
+      #debug:
+       # msg: "Please run /tmp/installer.sh once completed"
